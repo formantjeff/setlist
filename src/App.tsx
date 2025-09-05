@@ -8,6 +8,7 @@ import { ThemeProvider } from './ThemeContext';
 import { Settings } from './Settings';
 import { ModeProvider, useMode } from './ModeContext';
 import { BandSelection } from './BandSelection';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
 const SetlistManager: React.FC = () => {
   const [songs, setSongs] = useState<Song[]>([]);
@@ -37,6 +38,7 @@ const SetlistManager: React.FC = () => {
 
   useEffect(() => {
     if (user) {
+      fetchSongs();
       fetchProfile();
     }
   }, [user]);
@@ -173,6 +175,47 @@ const SetlistManager: React.FC = () => {
       if (selectedSong?.id === id) {
         setSelectedSong(null);
       }
+    }
+  };
+
+  // Drag and drop handler
+  const onDragEnd = async (result: DropResult) => {
+    if (!result.destination) {
+      return;
+    }
+
+    const startIndex = result.source.index;
+    const endIndex = result.destination.index;
+
+    if (startIndex === endIndex) {
+      return;
+    }
+
+    console.log(`Moving song from position ${startIndex} to ${endIndex}`);
+
+    // Reorder songs array
+    const newSongs = Array.from(songs);
+    const [reorderedSong] = newSongs.splice(startIndex, 1);
+    newSongs.splice(endIndex, 0, reorderedSong);
+
+    // Update local state immediately for smooth UX
+    setSongs(newSongs);
+
+    // Update positions in database
+    try {
+      const updates = newSongs.map((song, index) => 
+        supabase
+          .from('songs')
+          .update({ position: index })
+          .eq('id', song.id)
+      );
+      
+      await Promise.all(updates);
+      console.log('Song positions updated successfully');
+    } catch (error) {
+      console.error('Error updating song positions:', error);
+      // Revert on error
+      fetchSongs();
     }
   };
 
@@ -750,46 +793,87 @@ const SetlistManager: React.FC = () => {
         </div>
       )}
 
-      <div className="songs-list">
-        {songs.length === 0 ? (
-          <p className="placeholder">
-            {mode === 'performance' 
-              ? 'No songs in your setlist yet. Switch to Edit mode to add songs!' 
-              : 'No songs in your setlist yet. Add one above!'}
-          </p>
-        ) : (
-          songs.map((song) => (
-            <div 
-              key={song.id} 
-              className="song-item"
-              onClick={() => setSelectedSong(song)}
-            >
-              <div className="song-artwork">
-                {song.thumbnail_url ? (
-                  <img 
-                    src={song.thumbnail_url} 
-                    alt={`${song.name} thumbnail`} 
-                    className="song-thumbnail"
-                  />
-                ) : (
-                  <div className="song-placeholder">🎵</div>
-                )}
-              </div>
-              <div className="song-content">
-                <h3>{song.name}</h3>
-                <p className="song-artist">{song.artist || 'Unknown Artist'}</p>
-                <div className="song-meta">
-                  <span className="song-duration">{formatDuration(song.duration)}</span>
-                  {song.tempo && <span className="song-tempo">{song.tempo} BPM</span>}
+      <DragDropContext onDragEnd={onDragEnd}>
+        <div className="songs-list">
+          {songs.length === 0 ? (
+            <p className="placeholder">
+              {mode === 'performance' 
+                ? 'No songs in your setlist yet. Switch to Edit mode to add songs!' 
+                : 'No songs in your setlist yet. Add one above!'}
+            </p>
+          ) : (
+            <Droppable droppableId="songs" isDropDisabled={mode !== 'edit'}>
+              {(provided, snapshot) => (
+                <div
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  className={snapshot.isDraggingOver ? 'drag-over' : ''}
+                >
+                  {songs.map((song, index) => (
+                    <Draggable 
+                      key={song.id} 
+                      draggableId={song.id} 
+                      index={index}
+                      isDragDisabled={mode !== 'edit'}
+                    >
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          className={`song-item ${mode === 'edit' ? 'draggable' : ''} ${snapshot.isDragging ? 'dragging' : ''}`}
+                          onClick={() => {
+                            if (!snapshot.isDragging) {
+                              setSelectedSong(song);
+                            }
+                          }}
+                        >
+                          {mode === 'edit' && (
+                            <div 
+                              {...provided.dragHandleProps}
+                              className="drag-handle" 
+                              title="Drag to reorder songs"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="drag-lines">
+                                <div></div>
+                                <div></div>
+                                <div></div>
+                              </div>
+                            </div>
+                          )}
+                          <div className="song-artwork">
+                            {song.thumbnail_url ? (
+                              <img 
+                                src={song.thumbnail_url} 
+                                alt={`${song.name} thumbnail`} 
+                                className="song-thumbnail"
+                              />
+                            ) : (
+                              <div className="song-placeholder">🎵</div>
+                            )}
+                          </div>
+                          <div className="song-content">
+                            <h3>{song.name}</h3>
+                            <p className="song-artist">{song.artist || 'Unknown Artist'}</p>
+                            <div className="song-meta">
+                              <span className="song-duration">{formatDuration(song.duration)}</span>
+                              {song.tempo && <span className="song-tempo">{song.tempo} BPM</span>}
+                            </div>
+                          </div>
+                          <div className="song-version">
+                            v.1
+                          </div>
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
                 </div>
-              </div>
-              <div className="song-version">
-                v.1
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+              )}
+            </Droppable>
+          )}
+        </div>
+      </DragDropContext>
       
       <footer className="footer">
         <button 

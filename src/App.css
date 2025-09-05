@@ -178,11 +178,11 @@ body {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   padding: 0;
-  margin-bottom: 1px;
-  border-radius: 0;
+  margin-bottom: 8px;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: none;
+  box-shadow: var(--card-shadow);
   display: flex;
   align-items: center;
   min-height: 80px;
@@ -190,19 +190,11 @@ body {
 
 .song-item:hover {
   background: var(--bg-tertiary);
+  box-shadow: var(--card-shadow-hover);
+  transform: translateY(-1px);
 }
 
-.song-item:first-child {
-  border-radius: 12px 12px 0 0;
-}
-
-.song-item:last-child {
-  border-radius: 0 0 12px 12px;
-}
-
-.song-item:only-child {
-  border-radius: 12px;
-}
+/* Individual card styling - no special first/last child styling needed */
 
 .song-artwork {
   width: 60px;
@@ -253,6 +245,69 @@ body {
   font-size: 14px;
   margin: 0;
   line-height: 1.2;
+}
+
+.drag-handle {
+  padding: 10px 12px;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+  user-select: none;
+  background: transparent;
+  border: none;
+  touch-action: none;
+}
+
+.drag-handle:hover {
+  opacity: 1;
+}
+
+.draggable .drag-handle:active {
+  cursor: grabbing;
+}
+
+.drag-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.drag-lines div {
+  width: 16px;
+  height: 2px;
+  background: var(--text-secondary);
+  border-radius: 1px;
+}
+
+.song-item.dragging {
+  opacity: 0.8;
+  transform: rotate(2deg);
+  transition: none !important;
+  pointer-events: none;
+}
+
+.song-item.draggable:hover .drag-handle {
+  opacity: 0.8;
+}
+
+.song-item.drag-over {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px var(--card-shadow-hover);
+  border-color: var(--accent-primary);
+  background: var(--bg-tertiary);
+}
+
+.song-item.drag-placeholder {
+  opacity: 0.5;
+  transform: translateY(4px);
+  transition: all 0.2s ease;
+}
+
+.song-item.draggable {
+  transition: all 0.2s ease;
 }
 
 .song-version {
@@ -771,17 +826,7 @@ body {
 }
 
 /* Drag and Drop Styles */
-.drag-handle {
-  position: absolute;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-  font-size: 18px;
-  cursor: grab;
-  user-select: none;
-  padding: 4px;
-}
+/* Removed conflicting absolute positioning */
 
 .drag-handle:active {
   cursor: grabbing;
@@ -842,9 +887,9 @@ body {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  border: 2px solid var(--border-color);
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
+  border: 2px solid var(--bg-primary);
+  background: var(--text-primary);
+  color: var(--bg-primary);
   font-weight: 600;
   font-size: 0.875rem;
   cursor: pointer;
@@ -858,18 +903,19 @@ body {
 .avatar-button:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px var(--card-shadow-hover);
-  border-color: var(--accent-primary);
-  background: var(--bg-secondary);
+  border-color: var(--bg-primary);
+  background: var(--accent-secondary);
+  color: var(--bg-primary);
 }
 
 .avatar-dropdown {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  background: white;
+  background: var(--bg-primary);
   border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-  border: 1px solid #e1e8ed;
+  box-shadow: 0 8px 32px var(--card-shadow-hover);
+  border: 1px solid var(--border-color);
   min-width: 200px;
   overflow: hidden;
   z-index: 1000;
@@ -889,8 +935,9 @@ body {
 
 .dropdown-header {
   padding: 1rem;
-  border-bottom: 1px solid #e1e8ed;
-  background: #f8f9fa;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 .user-info {
@@ -917,7 +964,7 @@ body {
   background: none;
   text-align: left;
   font-size: 0.875rem;
-  color: #495057;
+  color: var(--text-primary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -926,7 +973,7 @@ body {
 }
 
 .dropdown-item:hover {
-  background-color: #f8f9fa;
+  background-color: var(--bg-tertiary);
 }
 
 .dropdown-icon {
@@ -937,17 +984,17 @@ body {
 
 .dropdown-divider {
   height: 1px;
-  background-color: #e1e8ed;
+  background-color: var(--border-color);
   margin: 0.5rem 0;
 }
 
 .logout-item {
-  color: #dc3545;
+  color: var(--text-secondary);
 }
 
 .logout-item:hover {
-  background-color: #fff5f5;
-  color: #c82333;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 /* Update header to accommodate avatar */

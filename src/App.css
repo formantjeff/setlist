@@ -1097,6 +1097,536 @@ body {
 }
 
 /* Update header to accommodate avatar */
+
+/* Song Detail Styles */
+.song-detail-app {
+  background: var(--bg-primary);
+  min-height: 100vh;
+}
+
+.song-detail-header {
+  background: var(--header-bg);
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.song-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.song-header-actions .edit-btn,
+.song-header-actions .menu-btn,
+.song-header-actions .delete-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.1rem;
+  padding: 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background-color 0.2s;
+}
+
+.song-header-actions .edit-btn:hover,
+.song-header-actions .menu-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.song-header-actions .delete-btn:hover {
+  background: #ff4444;
+  color: white;
+}
+
+/* Song Info Card */
+.song-info-card {
+  background: var(--bg-secondary);
+  margin: 1rem;
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.song-title-section {
+  margin-bottom: 1rem;
+}
+
+.song-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.25rem 0;
+  line-height: 1.3;
+}
+
+.song-artist {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.song-meta-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.song-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.song-meta-row .meta-label {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.song-meta-row .meta-value {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/* Song Header with Thumbnail and Controls */
+.song-header-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.song-thumbnail-header {
+  flex-shrink: 0;
+}
+
+.song-header-thumbnail {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--border-color);
+}
+
+.song-header-placeholder {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+
+.song-title-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.song-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.25rem 0;
+  line-height: 1.3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.song-title-controls {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.title-control-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.title-control-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* Inline Edit Section */
+.inline-edit-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.edit-field label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.edit-field input {
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+/* Chords Section */
+.chords-section {
+  margin: 1rem;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.chords-section .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-primary);
+}
+
+.chords-section .section-header h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.show-all-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.show-all-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.chords-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+
+.chord-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 80px;
+}
+
+.chord-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.chord-diagram {
+  width: 60px;
+  height: 80px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fret-board {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 40px;
+  height: 60px;
+}
+
+.string {
+  height: 1px;
+  background: var(--border-color);
+  width: 100%;
+}
+
+/* Lyrics Section */
+.lyrics-section {
+  margin: 1rem;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.lyrics-section .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-primary);
+}
+
+.lyrics-section .section-header h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.lyrics-content {
+  padding: 1.5rem;
+}
+
+.lyrics-with-chords {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 1rem;
+  line-height: 1.8;
+  color: var(--text-primary);
+}
+
+.lyrics-line {
+  margin-bottom: 0.5rem;
+  position: relative;
+}
+
+.chord-marker {
+  position: relative;
+  display: inline-block;
+}
+
+.chord-above {
+  position: absolute;
+  top: -1.5rem;
+  left: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--accent-primary);
+  background: var(--bg-primary);
+  padding: 0.125rem 0.25rem;
+  border-radius: 3px;
+  border: 1px solid var(--border-color);
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.lyrics-text {
+  color: var(--text-primary);
+}
+
+/* Edit Sections */
+.lyrics-edit-section,
+.notes-edit-section {
+  padding: 1.5rem;
+}
+
+.edit-hint {
+  background: var(--bg-tertiary);
+  padding: 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+  border: 1px solid var(--border-color);
+}
+
+.lyrics-textarea {
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  resize: vertical;
+  min-height: 300px;
+}
+
+.lyrics-textarea:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.1);
+}
+
+/* Placeholder States */
+.lyrics-placeholder {
+  padding: 3rem 1.5rem;
+  text-align: center;
+}
+
+.placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.placeholder-icon {
+  font-size: 3rem;
+  opacity: 0.3;
+}
+
+.placeholder-content p {
+  color: var(--text-muted);
+  font-size: 1rem;
+  margin: 0;
+}
+
+.add-lyrics-btn {
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.add-lyrics-btn:hover {
+  opacity: 0.9;
+}
+
+/* Notes Section */
+.notes-section {
+  margin: 1rem;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.notes-section .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-primary);
+}
+
+.notes-section .section-header h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.notes-content {
+  padding: 1.5rem;
+}
+
+.notes-content pre {
+  font-family: inherit;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+/* Edit Buttons */
+.edit-buttons {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.save-btn,
+.cancel-btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  border: none;
+}
+
+.save-btn {
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+}
+
+.cancel-btn {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.save-btn:hover,
+.cancel-btn:hover {
+  opacity: 0.9;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .song-info-card,
+  .chords-section,
+  .lyrics-section,
+  .notes-section {
+    margin: 0.5rem;
+  }
+  
+  .song-title {
+    font-size: 1.5rem;
+  }
+  
+  .chords-grid {
+    justify-content: center;
+  }
+  
+  .edit-actions,
+  .edit-buttons {
+    flex-direction: column;
+  }
+}
 .header {
   display: flex;
   align-items: center;

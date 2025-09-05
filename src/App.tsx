@@ -13,6 +13,9 @@ import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea
 const SetlistManager: React.FC = () => {
   const [songs, setSongs] = useState<Song[]>([]);
   const [newSongName, setNewSongName] = useState('');
+  const [newSongArtist, setNewSongArtist] = useState('');
+  const [newSongImage, setNewSongImage] = useState<File | null>(null);
+  const [newSongImagePreview, setNewSongImagePreview] = useState<string | null>(null);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const [isAddingLyrics, setIsAddingLyrics] = useState(false);
   const [isAddingChords, setIsAddingChords] = useState(false);
@@ -105,6 +108,27 @@ const SetlistManager: React.FC = () => {
   const addSong = async () => {
     if (!newSongName.trim() || !user || !userBandId) return;
 
+    let thumbnailUrl = null;
+
+    // Upload image if one is selected
+    if (newSongImage) {
+      const fileExt = newSongImage.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('song-images')
+        .upload(fileName, newSongImage);
+
+      if (uploadError) {
+        console.error('Error uploading image:', uploadError);
+      } else {
+        const { data: { publicUrl } } = supabase.storage
+          .from('song-images')
+          .getPublicUrl(fileName);
+        thumbnailUrl = publicUrl;
+      }
+    }
+
     // Get the highest position to add the new song at the end
     const maxPosition = songs.length > 0 ? Math.max(...songs.map(s => s.position || 0)) + 1 : 0;
 
@@ -112,9 +136,11 @@ const SetlistManager: React.FC = () => {
       .from('songs')
       .insert([{ 
         name: newSongName.trim(), 
+        artist: newSongArtist.trim() || undefined,
         user_id: user.id,
         band_id: userBandId,
-        position: maxPosition
+        position: maxPosition,
+        thumbnail_url: thumbnailUrl
       }])
       .select();
 
@@ -123,6 +149,9 @@ const SetlistManager: React.FC = () => {
     } else {
       setSongs([...songs, ...data]);
       setNewSongName('');
+      setNewSongArtist('');
+      setNewSongImage(null);
+      setNewSongImagePreview(null);
     }
   };
 
@@ -260,6 +289,20 @@ const SetlistManager: React.FC = () => {
       const reader = new FileReader();
       reader.onload = (e) => {
         setImagePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleNewSongImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setNewSongImage(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setNewSongImagePreview(e.target?.result as string);
       };
       reader.readAsDataURL(file);
     }
@@ -780,16 +823,60 @@ const SetlistManager: React.FC = () => {
       
       {mode === 'edit' && (
         <div className="add-song">
-          <input
-            type="text"
-            value={newSongName}
-            onChange={(e) => setNewSongName(e.target.value)}
-            placeholder="Enter song name..."
-            onKeyPress={(e) => e.key === 'Enter' && addSong()}
-          />
-          <button onClick={addSong} disabled={!newSongName.trim()}>
-            Add Song
-          </button>
+          <div className="add-song-form">
+            <div className="form-row">
+              <input
+                type="text"
+                value={newSongName}
+                onChange={(e) => setNewSongName(e.target.value)}
+                placeholder="Song name..."
+                className="song-name-input"
+                onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && addSong()}
+              />
+              <input
+                type="text"
+                value={newSongArtist}
+                onChange={(e) => setNewSongArtist(e.target.value)}
+                placeholder="Artist..."
+                className="artist-input"
+                onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && addSong()}
+              />
+            </div>
+            
+            {newSongImagePreview && (
+              <div className="image-preview-container">
+                <img src={newSongImagePreview} alt="Song preview" className="new-song-thumbnail-preview" />
+                <button 
+                  onClick={() => {
+                    setNewSongImage(null);
+                    setNewSongImagePreview(null);
+                  }}
+                  className="remove-image-btn"
+                  type="button"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+            
+            <div className="form-actions">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleNewSongImageSelect}
+                {...(isMobile() && { capture: 'environment' })}
+                style={{ display: 'none' }}
+                id="new-song-image-upload"
+              />
+              <label htmlFor="new-song-image-upload" className="image-upload-btn">
+                📷 {isMobile() ? 'Take Photo' : 'Add Image'}
+              </label>
+              
+              <button onClick={addSong} disabled={!newSongName.trim()} className="add-btn">
+                Add Song
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

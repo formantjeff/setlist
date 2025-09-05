@@ -122,11 +122,30 @@ body {
   padding: 1rem;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-light);
+}
+
+.add-song-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.form-row {
   display: flex;
   gap: 0.75rem;
 }
 
-.add-song input {
+.song-name-input {
+  flex: 2;
+  padding: 0.75rem;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 1rem;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.artist-input {
   flex: 1;
   padding: 0.75rem;
   border: 2px solid var(--border-color);
@@ -136,32 +155,90 @@ body {
   color: var(--text-primary);
 }
 
-.add-song input:focus {
+.song-name-input:focus,
+.artist-input:focus {
   outline: none;
   border-color: var(--accent-primary);
   background: var(--bg-secondary);
 }
 
-.add-song button {
+.image-preview-container {
+  position: relative;
+  display: inline-block;
+  margin-bottom: 0.5rem;
+}
+
+.new-song-thumbnail-preview {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid var(--border-color);
+}
+
+.remove-image-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent-secondary);
+  color: var(--bg-primary);
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.image-upload-btn {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 2px solid var(--border-color);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.image-upload-btn:hover {
+  background: var(--bg-secondary);
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+
+.add-btn {
   background: var(--accent-primary);
   color: var(--bg-primary);
   border: 1px solid var(--accent-primary);
   padding: 0.75rem 1.5rem;
   border-radius: 8px;
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s;
 }
 
-.add-song button:hover:not(:disabled) {
+.add-btn:hover:not(:disabled) {
   background: var(--bg-primary);
   color: var(--accent-primary);
   border-color: var(--accent-primary);
 }
 
-.add-song button:disabled {
+.add-btn:disabled {
   background: var(--bg-tertiary);
   color: var(--text-muted);
   border-color: var(--border-color);
@@ -248,7 +325,7 @@ body {
 }
 
 .drag-handle {
-  padding: 10px 12px;
+  padding: 16px 20px;
   cursor: grab;
   display: flex;
   align-items: center;
@@ -259,6 +336,8 @@ body {
   background: transparent;
   border: none;
   touch-action: none;
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .drag-handle:hover {
@@ -287,13 +366,21 @@ body {
   transform: rotate(2deg);
   transition: none !important;
   pointer-events: none;
+  z-index: 1000;
+  position: relative;
+}
+
+.song-item:not(.dragging) {
+  transform: none !important;
+  opacity: 1 !important;
+  z-index: 1 !important;
 }
 
 .song-item.draggable:hover .drag-handle {
   opacity: 0.8;
 }
 
-.song-item.drag-over {
+.song-item.drag-over:not(.dragging) {
   transform: translateY(-2px);
   box-shadow: 0 8px 25px var(--card-shadow-hover);
   border-color: var(--accent-primary);
@@ -301,13 +388,25 @@ body {
 }
 
 .song-item.drag-placeholder {
-  opacity: 0.5;
-  transform: translateY(4px);
-  transition: all 0.2s ease;
+  opacity: 0.3;
+  background: var(--bg-secondary);
+  border: 2px dashed var(--border-color);
 }
 
 .song-item.draggable {
   transition: all 0.2s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.song-item.draggable.dragging {
+  z-index: 1000;
+  transition: none !important;
+}
+
+.song-item.draggable:not(.dragging) {
+  transform: translateY(0) !important;
+  opacity: 1 !important;
 }
 
 .song-version {

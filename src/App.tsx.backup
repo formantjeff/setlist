@@ -1,0 +1,318 @@
+import React, { useState, useEffect } from 'react';
+import './App.css';
+import { supabase, Song } from './supabase';
+import { AuthProvider, useAuth } from './AuthContext';
+import { Auth } from './Auth';
+import { UserAvatar } from './UserAvatar';
+import { ThemeProvider } from './ThemeContext';
+import { Settings } from './Settings';
+import { ModeProvider, useMode } from './ModeContext';
+import { ModeToggle } from './ModeToggle';
+
+const SetlistManager: React.FC = () => {
+  const [songs, setSongs] = useState<Song[]>([]);
+  const [newSongName, setNewSongName] = useState('');
+  const [selectedSong, setSelectedSong] = useState<Song | null>(null);
+  const [isAddingLyrics, setIsAddingLyrics] = useState(false);
+  const [isAddingChords, setIsAddingChords] = useState(false);
+  const [editLyrics, setEditLyrics] = useState('');
+  const [editChords, setEditChords] = useState('');
+  const [currentView, setCurrentView] = useState<'songs' | 'settings' | 'account'>('songs');
+  const { user, signOut } = useAuth();
+  const { mode } = useMode();
+
+  useEffect(() => {
+    if (user) {
+      fetchSongs();
+    }
+  }, [user]);
+
+  const fetchSongs = async () => {
+    if (!user) return;
+    
+    const { data, error } = await supabase
+      .from('songs')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('Error fetching songs:', error);
+    } else {
+      setSongs(data || []);
+    }
+  };
+
+  const addSong = async () => {
+    if (!newSongName.trim() || !user) return;
+
+    const { data, error } = await supabase
+      .from('songs')
+      .insert([{ name: newSongName.trim(), user_id: user.id }])
+      .select();
+
+    if (error) {
+      console.error('Error adding song:', error);
+    } else {
+      setSongs([...data, ...songs]);
+      setNewSongName('');
+    }
+  };
+
+  const updateSong = async (id: string, updates: Partial<Song>) => {
+    const { data, error } = await supabase
+      .from('songs')
+      .update(updates)
+      .eq('id', id)
+      .select();
+
+    if (error) {
+      console.error('Error updating song:', error);
+    } else {
+      setSongs(songs.map(song => song.id === id ? data[0] : song));
+      if (selectedSong?.id === id) {
+        setSelectedSong(data[0]);
+      }
+    }
+  };
+
+  const deleteSong = async (id: string) => {
+    const { error } = await supabase
+      .from('songs')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting song:', error);
+    } else {
+      setSongs(songs.filter(song => song.id !== id));
+      if (selectedSong?.id === id) {
+        setSelectedSong(null);
+      }
+    }
+  };
+
+  const handleSaveLyrics = () => {
+    if (selectedSong) {
+      updateSong(selectedSong.id, { lyrics: editLyrics });
+      setIsAddingLyrics(false);
+    }
+  };
+
+  const handleSaveChords = () => {
+    if (selectedSong) {
+      updateSong(selectedSong.id, { chords: editChords });
+      setIsAddingChords(false);
+    }
+  };
+
+  // Settings view
+  if (currentView === 'settings') {
+    return <Settings onBack={() => setCurrentView('songs')} />;
+  }
+
+  // Account view (placeholder for now)
+  if (currentView === 'account') {
+    return (
+      <div className="App" data-mode={mode}>
+        <header className="header">
+          <button onClick={() => setCurrentView('songs')} className="back-btn">
+            ← Back
+          </button>
+          <h1>Account</h1>
+          <div style={{ width: '40px' }}></div>
+        </header>
+        <div className="settings-container">
+          <div className="settings-section">
+            <h2>Account Information</h2>
+            <div className="setting-item">
+              <div className="setting-info">
+                <label className="setting-label">Email</label>
+                <p className="setting-description">{user?.email}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (selectedSong) {
+    return (
+      <div className="App" data-mode={mode}>
+        <header className="header">
+          <button onClick={() => setSelectedSong(null)} className="back-btn">
+            ← Back
+          </button>
+          <h1>{selectedSong.name}</h1>
+          {mode === 'edit' && (
+            <button 
+              onClick={() => deleteSong(selectedSong.id)} 
+              className="delete-btn"
+            >
+              Delete
+            </button>
+          )}
+        </header>
+        
+        <div className="song-detail">
+          <div className="section">
+            <div className="section-header">
+              <h3>Lyrics</h3>
+              {mode === 'edit' && (
+                <button 
+                  onClick={() => {
+                    setEditLyrics(selectedSong.lyrics || '');
+                    setIsAddingLyrics(true);
+                  }}
+                  className="edit-btn"
+                >
+                  {selectedSong.lyrics ? 'Edit' : 'Add'}
+                </button>
+              )}
+            </div>
+            {isAddingLyrics ? (
+              <div className="edit-section">
+                <textarea
+                  value={editLyrics}
+                  onChange={(e) => setEditLyrics(e.target.value)}
+                  placeholder="Enter lyrics..."
+                  rows={10}
+                />
+                <div className="edit-buttons">
+                  <button onClick={handleSaveLyrics} className="save-btn">Save</button>
+                  <button onClick={() => setIsAddingLyrics(false)} className="cancel-btn">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div className="content">
+                {selectedSong.lyrics ? (
+                  <pre>{selectedSong.lyrics}</pre>
+                ) : (
+                  <p className="placeholder">No lyrics added yet</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="section">
+            <div className="section-header">
+              <h3>Chords</h3>
+              {mode === 'edit' && (
+                <button 
+                  onClick={() => {
+                    setEditChords(selectedSong.chords || '');
+                    setIsAddingChords(true);
+                  }}
+                  className="edit-btn"
+                >
+                  {selectedSong.chords ? 'Edit' : 'Add'}
+                </button>
+              )}
+            </div>
+            {isAddingChords ? (
+              <div className="edit-section">
+                <textarea
+                  value={editChords}
+                  onChange={(e) => setEditChords(e.target.value)}
+                  placeholder="Enter chords..."
+                  rows={10}
+                />
+                <div className="edit-buttons">
+                  <button onClick={handleSaveChords} className="save-btn">Save</button>
+                  <button onClick={() => setIsAddingChords(false)} className="cancel-btn">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div className="content">
+                {selectedSong.chords ? (
+                  <pre>{selectedSong.chords}</pre>
+                ) : (
+                  <p className="placeholder">No chords added yet</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="App" data-mode={mode}>
+      <header className="header">
+        <h1>Setlist Manager</h1>
+        <div className="header-controls">
+          <ModeToggle />
+          <UserAvatar 
+            onAccountClick={() => setCurrentView('account')}
+            onSettingsClick={() => setCurrentView('settings')}
+          />
+        </div>
+      </header>
+      
+      {mode === 'edit' && (
+        <div className="add-song">
+          <input
+            type="text"
+            value={newSongName}
+            onChange={(e) => setNewSongName(e.target.value)}
+            placeholder="Enter song name..."
+            onKeyPress={(e) => e.key === 'Enter' && addSong()}
+          />
+          <button onClick={addSong} disabled={!newSongName.trim()}>
+            Add Song
+          </button>
+        </div>
+      )}
+
+      <div className="songs-list">
+        {songs.length === 0 ? (
+          <p className="placeholder">
+            {mode === 'performance' 
+              ? 'No songs in your setlist yet. Switch to Edit mode to add songs!' 
+              : 'No songs in your setlist yet. Add one above!'}
+          </p>
+        ) : (
+          songs.map((song) => (
+            <div 
+              key={song.id} 
+              className="song-item"
+              onClick={() => setSelectedSong(song)}
+            >
+              <h3>{song.name}</h3>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+const AppContent: React.FC = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-text">Loading...</div>
+      </div>
+    );
+  }
+
+  return user ? <SetlistManager /> : <Auth />;
+};
+
+const App: React.FC = () => {
+  return (
+    <ThemeProvider>
+      <ModeProvider>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </ModeProvider>
+    </ThemeProvider>
+  );
+};
+
+export default App;

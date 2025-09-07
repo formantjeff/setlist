@@ -32,6 +32,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { searchSpotifyTracks, spotifyTrackToSong, spotifyTrackToSongWithData, SpotifyTrack } from './services/spotify';
+import SongLibrary from './SongLibrary';
 
 interface SortableItemProps {
   id: string;
@@ -169,6 +170,7 @@ const SetlistManager: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [showSongLibrary, setShowSongLibrary] = useState(false);
   // Setlist management state
   const [setlists, setSetlists] = useState<Setlist[]>([]);
   const [currentSetlist, setCurrentSetlist] = useState<Setlist | null>(null);
@@ -793,6 +795,42 @@ const SetlistManager: React.FC = () => {
       setAddSongMethod(null);
       // Refresh setlist metadata
       fetchSetlists();
+    }
+  };
+
+  // Add song from library
+  const addSongFromLibrary = async (song: Song) => {
+    if (!user || !userBandId || !currentSetlist) return;
+
+    try {
+      console.log('Adding song from library:', song.name, 'by', song.artist);
+      
+      // Get the highest position to add the new song at the end
+      const maxPosition = songs.length > 0 ? Math.max(...songs.map(s => s.position || 0)) + 1 : 0;
+
+      const { data, error } = await supabase
+        .from('songs')
+        .insert([{
+          ...song,
+          user_id: user.id,
+          band_id: userBandId,
+          setlist_id: currentSetlist.id,
+          position: maxPosition,
+          id: undefined // Let database generate new ID
+        }])
+        .select();
+
+      if (error) {
+        console.error('Error adding song from library:', error);
+      } else {
+        setSongs([...songs, ...data]);
+        setShowAddSongMenu(false);
+        setAddSongMethod(null);
+        // Refresh setlist metadata
+        fetchSetlists();
+      }
+    } catch (error) {
+      console.error('Error adding song from library:', error);
     }
   };
 
@@ -2010,9 +2048,12 @@ const SetlistManager: React.FC = () => {
                           {addSongMethod === 'library' && (
                             <div className="space-y-3">
                               <h3 className="text-lg font-medium text-center">From Library</h3>
-                              <div className="p-4 rounded-md bg-muted/50 text-center text-sm text-muted-foreground">
-                                Library functionality coming soon...
-                              </div>
+                              <Button
+                                onClick={() => setShowSongLibrary(true)}
+                                className="w-full"
+                              >
+                                Browse Song Library
+                              </Button>
                             </div>
                           )}
                         </div>
@@ -2181,9 +2222,12 @@ const SetlistManager: React.FC = () => {
                           {addSongMethod === 'library' && (
                             <div className="space-y-3">
                               <h3 className="text-lg font-medium text-center">From Library</h3>
-                              <div className="p-4 rounded-md bg-muted/50 text-center text-sm text-muted-foreground">
-                                Library functionality coming soon...
-                              </div>
+                              <Button
+                                onClick={() => setShowSongLibrary(true)}
+                                className="w-full"
+                              >
+                                Browse Song Library
+                              </Button>
                             </div>
                           )}
                         </div>
@@ -2197,6 +2241,14 @@ const SetlistManager: React.FC = () => {
         </div>
       )}
       
+      {/* Song Library Modal */}
+      {showSongLibrary && (
+        <SongLibrary
+          onSongSelect={addSongFromLibrary}
+          onClose={() => setShowSongLibrary(false)}
+        />
+      )}
+
       {/* Modern Footer */}
       <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4">
       </div>

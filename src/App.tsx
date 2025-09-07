@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
-import { supabase, Song, Profile, Band } from './supabase';
+import { supabase, Song, Profile, Band, Setlist } from './supabase';
 import { AuthProvider, useAuth } from './AuthContext';
 import { Auth } from './Auth';
 import { UserAvatar } from './UserAvatar';
@@ -10,7 +10,7 @@ import { BandSelection } from './BandSelection';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardHeader } from './components/ui/card';
 import { Badge } from './components/ui/badge';
-import { ArrowLeft, MoreHorizontal, Edit3, Trash2, Music, Heart, Share2, RotateCcw, Plus, Settings as SettingsIcon, User, Moon, Sun, Search } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, Edit3, Trash2, Music, Heart, Share2, RotateCcw, Plus, Settings as SettingsIcon, User, Moon, Sun, Search, Globe, Library, FileText, ChevronDown, Calendar, MapPin, Clock } from 'lucide-react';
 import { useTheme } from './ThemeContext';
 import {
   DndContext,
@@ -28,20 +28,20 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { searchSpotifyTracks, spotifyTrackToSong, SpotifyTrack } from './services/spotify';
 
 interface SortableItemProps {
+  id: string;
   song: Song;
   onSongClick: (song: Song) => void;
   formatDuration: (duration?: string) => string;
   showDragHandle: boolean;
 }
 
-const SortableItem: React.FC<SortableItemProps> = ({ song, onSongClick, formatDuration, showDragHandle }) => {
+const SortableItem: React.FC<SortableItemProps> = ({ id, song, onSongClick, formatDuration, showDragHandle }) => {
   const {
     attributes,
     listeners,
@@ -49,7 +49,7 @@ const SortableItem: React.FC<SortableItemProps> = ({ song, onSongClick, formatDu
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: song.id });
+  } = useSortable({ id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -164,6 +164,19 @@ const SetlistManager: React.FC = () => {
   const [userBandId, setUserBandId] = useState<string | null>(null);
   const [isReordering, setIsReordering] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [showAddSongMenu, setShowAddSongMenu] = useState(false);
+  const [addSongMethod, setAddSongMethod] = useState<'search' | 'library' | 'create' | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  // Setlist management state
+  const [setlists, setSetlists] = useState<Setlist[]>([]);
+  const [currentSetlist, setCurrentSetlist] = useState<Setlist | null>(null);
+  const [showSetlistSelector, setShowSetlistSelector] = useState(false);
+  const [showCreateSetlist, setShowCreateSetlist] = useState(false);
+  const [newSetlistName, setNewSetlistName] = useState('');
+  const [newSetlistVenue, setNewSetlistVenue] = useState('');
+  const [newSetlistDescription, setNewSetlistDescription] = useState('');
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
@@ -187,10 +200,16 @@ const SetlistManager: React.FC = () => {
 
   useEffect(() => {
     if (userBandId) {
-      fetchSongs();
+      fetchSetlists();
       fetchBand();
     }
   }, [userBandId]);
+
+  useEffect(() => {
+    if (currentSetlist) {
+      fetchSongs();
+    }
+  }, [currentSetlist]);
 
   const fetchProfile = async () => {
     if (!user) return;
@@ -212,12 +231,13 @@ const SetlistManager: React.FC = () => {
   };
 
   const fetchSongs = async () => {
-    if (!user || !userBandId) return;
+    if (!user || !userBandId || !currentSetlist) return;
     
     const { data, error } = await supabase
       .from('songs')
       .select('*')
       .eq('band_id', userBandId)
+      .eq('setlist_id', currentSetlist.id)
       .order('position', { ascending: true })
       .order('created_at', { ascending: false });
     
@@ -225,6 +245,26 @@ const SetlistManager: React.FC = () => {
       console.error('Error fetching songs:', error);
     } else {
       setSongs(data || []);
+    }
+  };
+
+  const fetchSetlists = async () => {
+    if (!user || !userBandId) return;
+    
+    const { data, error } = await supabase
+      .from('setlists')
+      .select('*')
+      .eq('band_id', userBandId)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('Error fetching setlists:', error);
+    } else {
+      setSetlists(data || []);
+      // If no current setlist selected, select the first one
+      if (!currentSetlist && data && data.length > 0) {
+        setCurrentSetlist(data[0]);
+      }
     }
   };
 
@@ -245,7 +285,7 @@ const SetlistManager: React.FC = () => {
   };
 
   const addSong = async () => {
-    if (!newSongName.trim() || !user || !userBandId) return;
+    if (!newSongName.trim() || !user || !userBandId || !currentSetlist) return;
 
     // Get the highest position to add the new song at the end
     const maxPosition = songs.length > 0 ? Math.max(...songs.map(s => s.position || 0)) + 1 : 0;
@@ -256,6 +296,7 @@ const SetlistManager: React.FC = () => {
         name: newSongName.trim(), 
         user_id: user.id,
         band_id: userBandId,
+        setlist_id: currentSetlist.id,
         position: maxPosition
       }])
       .select();
@@ -265,6 +306,11 @@ const SetlistManager: React.FC = () => {
     } else {
       setSongs([...songs, ...data]);
       setNewSongName('');
+      // Reset the add song menu
+      setShowAddSongMenu(false);
+      setAddSongMethod(null);
+      // Refresh setlist metadata
+      fetchSetlists();
     }
   };
 
@@ -317,6 +363,8 @@ const SetlistManager: React.FC = () => {
       if (selectedSong?.id === id) {
         setSelectedSong(null);
       }
+      // Refresh setlist metadata
+      fetchSetlists();
     }
   };
 
@@ -437,13 +485,33 @@ const SetlistManager: React.FC = () => {
 
   const formatDuration = (duration?: string): string => {
     if (!duration) return '3:00';
-    // Convert PostgreSQL interval to MM:SS format
+    
+    console.log('formatDuration input:', duration);
+    
+    // If it's already in MM:SS format (from Spotify), return as is
+    if (duration.match(/^\d{1,2}:\d{2}$/)) {
+      console.log('formatDuration MM:SS format, returning:', duration);
+      return duration;
+    }
+    
+    // Convert PostgreSQL interval to MM:SS format (for legacy songs)
     if (duration.includes(':')) {
       const parts = duration.split(':');
-      if (parts.length >= 2) {
-        return `${parts[1]}:${parts[2].split('.')[0]}`;
+      if (parts.length >= 3) {
+        // PostgreSQL format: HH:MM:SS - convert to MM:SS
+        const hours = parseInt(parts[0]);
+        const minutes = parseInt(parts[1]) + (hours * 60); // Convert hours to minutes
+        const seconds = parts[2].split('.')[0];
+        const result = `${minutes}:${seconds.padStart(2, '0')}`;
+        console.log('formatDuration PostgreSQL format, converted to:', result);
+        return result;
+      } else if (parts.length === 2) {
+        // Simple MM:SS format
+        console.log('formatDuration MM:SS format, returning:', duration);
+        return duration;
       }
     }
+    console.log('formatDuration fallback, returning:', duration);
     return duration;
   };
 
@@ -508,6 +576,113 @@ const SetlistManager: React.FC = () => {
     });
   };
 
+  // Simple chord diagram component
+  const SimpleChordDiagram: React.FC<{ chord: string }> = ({ chord }) => {
+    // Basic chord fingering patterns for common chords
+    const chordPatterns: { [key: string]: number[] } = {
+      'G': [3, 2, 0, 0, 3, 3],
+      'C': [-1, 3, 2, 0, 1, 0],
+      'D': [-1, -1, 0, 2, 3, 2],
+      'Em': [0, 2, 2, 0, 0, 0],
+      'Am': [-1, 0, 2, 2, 1, 0],
+      'F': [1, 3, 3, 2, 1, 1],
+      'E': [0, 2, 2, 1, 0, 0],
+      'A': [-1, 0, 2, 2, 2, 0],
+      'Dm': [-1, -1, 0, 2, 3, 1],
+      'B7': [-1, 2, 1, 2, 0, 2],
+      'C7': [-1, 3, 2, 3, 1, 0],
+      'G7': [3, 2, 0, 0, 0, 1],
+    };
+
+    const frets = chordPatterns[chord] || [-1, -1, -1, -1, -1, -1];
+    const strings = 6;
+    const fretCount = 4;
+
+    return (
+      <svg width="48" height="64" viewBox="0 0 48 64" className="chord-diagram">
+        {/* Fret lines */}
+        {Array.from({ length: fretCount + 1 }, (_, i) => (
+          <line
+            key={`fret-${i}`}
+            x1="8"
+            y1={8 + i * 12}
+            x2="40"
+            y2={8 + i * 12}
+            stroke="white"
+            strokeWidth={i === 0 ? "2" : "1"}
+          />
+        ))}
+        
+        {/* String lines */}
+        {Array.from({ length: strings }, (_, i) => (
+          <line
+            key={`string-${i}`}
+            x1={8 + i * 6.4}
+            y1="8"
+            x2={8 + i * 6.4}
+            y2="56"
+            stroke="white"
+            strokeWidth="1"
+          />
+        ))}
+        
+        {/* Finger positions */}
+        {frets.map((fret, stringIndex) => {
+          if (fret === -1) return null; // Muted string
+          if (fret === 0) {
+            // Open string - circle at the top
+            return (
+              <circle
+                key={`open-${stringIndex}`}
+                cx={8 + stringIndex * 6.4}
+                cy="4"
+                r="2"
+                fill="none"
+                stroke="white"
+                strokeWidth="1.5"
+              />
+            );
+          }
+          // Fretted note - filled circle
+          return (
+            <circle
+              key={`fret-${stringIndex}-${fret}`}
+              cx={8 + stringIndex * 6.4}
+              cy={8 + fret * 12 - 6}
+              r="3"
+              fill="white"
+            />
+          );
+        })}
+        
+        {/* Muted strings */}
+        {frets.map((fret, stringIndex) => {
+          if (fret !== -1) return null;
+          return (
+            <g key={`muted-${stringIndex}`}>
+              <line
+                x1={8 + stringIndex * 6.4 - 2}
+                y1="2"
+                x2={8 + stringIndex * 6.4 + 2}
+                y2="6"
+                stroke="white"
+                strokeWidth="1.5"
+              />
+              <line
+                x1={8 + stringIndex * 6.4 - 2}
+                y1="6"
+                x2={8 + stringIndex * 6.4 + 2}
+                y2="2"
+                stroke="white"
+                strokeWidth="1.5"
+              />
+            </g>
+          );
+        })}
+      </svg>
+    );
+  };
+
   const handleSaveProfile = async () => {
     await updateProfile({
       display_name: editDisplayName.trim() || undefined,
@@ -535,6 +710,90 @@ const SetlistManager: React.FC = () => {
     await updateProfile({ band_id: null });
     setUserBandId(null);
     setCurrentBand(null);
+  };
+
+  // Create a new setlist
+  const createSetlist = async () => {
+    if (!user || !userBandId || !newSetlistName.trim()) return;
+
+    const { data, error } = await supabase
+      .from('setlists')
+      .insert([{
+        name: newSetlistName.trim(),
+        description: newSetlistDescription.trim() || undefined,
+        venue: newSetlistVenue.trim() || undefined,
+        band_id: userBandId,
+        created_by: user.id
+      }])
+      .select();
+
+    if (error) {
+      console.error('Error creating setlist:', error);
+    } else {
+      setSetlists([data[0], ...setlists]);
+      setCurrentSetlist(data[0]);
+      setNewSetlistName('');
+      setNewSetlistDescription('');
+      setNewSetlistVenue('');
+      setShowCreateSetlist(false);
+    }
+  };
+
+  // Switch to a different setlist
+  const switchSetlist = (setlist: Setlist) => {
+    setCurrentSetlist(setlist);
+    setShowSetlistSelector(false);
+  };
+
+  // Search for songs using Spotify API
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    
+    setIsSearching(true);
+    try {
+      const results = await searchSpotifyTracks(searchQuery, 10);
+      setSearchResults(results);
+    } catch (error) {
+      console.error('Search failed:', error);
+      // For demo purposes, show mock results if API fails
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Add song from Spotify search result
+  const addSongFromSpotify = async (track: SpotifyTrack) => {
+    if (!user || !userBandId || !currentSetlist) return;
+
+    const songData = spotifyTrackToSong(track);
+    
+    // Get the highest position to add the new song at the end
+    const maxPosition = songs.length > 0 ? Math.max(...songs.map(s => s.position || 0)) + 1 : 0;
+
+    const { data, error } = await supabase
+      .from('songs')
+      .insert([{ 
+        ...songData,
+        user_id: user.id,
+        band_id: userBandId,
+        setlist_id: currentSetlist.id,
+        position: maxPosition
+      }])
+      .select();
+
+    if (error) {
+      console.error('Error adding song from Spotify:', error);
+    } else {
+      setSongs([...songs, ...data]);
+      // Reset the search interface
+      setSearchQuery('');
+      setSearchResults([]);
+      setShowAddSongMenu(false);
+      setAddSongMethod(null);
+      // Refresh setlist metadata
+      fetchSetlists();
+    }
   };
 
   // If user doesn't have a band, show band selection
@@ -913,8 +1172,8 @@ const SetlistManager: React.FC = () => {
                   {chordsFromLyrics.slice(0, 6).map((chord, index) => (
                     <div key={index} className="flex flex-col items-center space-y-2">
                       <div className="text-sm font-medium">{chord}</div>
-                      <div className="w-12 h-16 bg-muted rounded border flex items-center justify-center">
-                        <div className="text-xs text-muted-foreground">•••</div>
+                      <div className="flex items-center justify-center">
+                        <SimpleChordDiagram chord={chord} />
                       </div>
                     </div>
                   ))}
@@ -1065,6 +1324,21 @@ const SetlistManager: React.FC = () => {
         <div className="flex h-16 items-center justify-between px-4">
           <div className="flex items-center space-x-4">
             <h1 className="text-xl font-semibold">{currentBand?.name || 'Setlist Manager'}</h1>
+            {/* Setlist selector */}
+            {currentSetlist && (
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowSetlistSelector(!showSetlistSelector)}
+                  className="gap-2 text-muted-foreground"
+                >
+                  <Calendar className="h-4 w-4" />
+                  {currentSetlist.name}
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </div>
           
           <div className="flex items-center space-x-2">
@@ -1095,25 +1369,177 @@ const SetlistManager: React.FC = () => {
             </Button>
           </div>
         </div>
+        
+        
       </header>
       
-      {/* Add Song Section */}
-      <div className="p-4 border-b bg-muted/30">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={newSongName}
-            onChange={(e) => setNewSongName(e.target.value)}
-            placeholder="Add song name..."
-            className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && addSong()}
-          />
-          <Button onClick={addSong} disabled={!newSongName.trim()}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Song
-          </Button>
+      
+      {/* Create Setlist Modal */}
+      {showCreateSetlist && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => {
+            setShowCreateSetlist(false);
+            setNewSetlistName('');
+            setNewSetlistDescription('');
+            setNewSetlistVenue('');
+          }}
+        >
+          <div 
+            className="w-full max-w-md mx-4 bg-background border rounded-lg shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Create New Setlist</h3>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setShowCreateSetlist(false);
+                    setNewSetlistName('');
+                    setNewSetlistDescription('');
+                    setNewSetlistVenue('');
+                  }}
+                >
+                  <Plus className="h-4 w-4 rotate-45" />
+                </Button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium block mb-1">Name</label>
+                  <input
+                    type="text"
+                    value={newSetlistName}
+                    onChange={(e) => setNewSetlistName(e.target.value)}
+                    placeholder="e.g., Spring Concert 2024"
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    autoFocus
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium block mb-1">Venue (optional)</label>
+                  <input
+                    type="text"
+                    value={newSetlistVenue}
+                    onChange={(e) => setNewSetlistVenue(e.target.value)}
+                    placeholder="e.g., The Blue Note"
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium block mb-1">Description (optional)</label>
+                  <textarea
+                    value={newSetlistDescription}
+                    onChange={(e) => setNewSetlistDescription(e.target.value)}
+                    placeholder="e.g., Acoustic set for spring fundraiser"
+                    rows={3}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  />
+                </div>
+                
+                <div className="flex justify-end space-x-2 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowCreateSetlist(false);
+                      setNewSetlistName('');
+                      setNewSetlistDescription('');
+                      setNewSetlistVenue('');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={createSetlist}
+                    disabled={!newSetlistName.trim()}
+                  >
+                    Create
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Setlist Selector Modal */}
+      {showSetlistSelector && (
+        <div 
+          className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-black/50"
+          onClick={() => setShowSetlistSelector(false)}
+        >
+          <div 
+            className="w-full max-w-md mx-4 bg-background border rounded-lg shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold">Switch Setlist</h3>
+                <Button
+                  size="sm"
+                  onClick={(e) => {
+                    console.log('New button clicked!');
+                    e.stopPropagation();
+                    setShowSetlistSelector(false);
+                    setShowCreateSetlist(true);
+                  }}
+                  className="gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  New
+                </Button>
+              </div>
+              
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {setlists.map((setlist) => (
+                  <div
+                    key={setlist.id}
+                    className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                      currentSetlist?.id === setlist.id
+                        ? 'bg-primary text-primary-foreground'
+                        : 'hover:bg-accent'
+                    }`}
+                    onClick={() => switchSetlist(setlist)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium truncate">{setlist.name}</h4>
+                        {setlist.venue && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <MapPin className="h-3 w-3" />
+                            <span className="text-xs text-muted-foreground truncate">
+                              {setlist.venue}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {setlist.total_duration || '0:00'}
+                          </div>
+                          <span>•</span>
+                          <span>{setlist.song_count || 0} songs</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {setlists.length === 0 && (
+                <div className="text-center py-4 text-muted-foreground">
+                  <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No setlists yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {isReordering ? (
         <DndContext 
@@ -1123,7 +1549,23 @@ const SetlistManager: React.FC = () => {
           onDragEnd={handleDragEnd}
         >
         <div className="p-4">
-          {songs.length === 0 ? (
+          {!currentSetlist ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground mb-2">
+                  No setlist selected
+                </p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Create your first setlist to start adding songs
+                </p>
+                <Button onClick={(e) => { e.stopPropagation(); setShowCreateSetlist(true); }} className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Create Setlist
+                </Button>
+              </CardContent>
+            </Card>
+          ) : songs.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                 <Music className="h-12 w-12 text-muted-foreground mb-4" />
@@ -1144,12 +1586,171 @@ const SetlistManager: React.FC = () => {
                 {songs.map((song) => (
                   <SortableItem
                     key={song.id}
+                    id={song.id}
                     song={song}
                     onSongClick={setSelectedSong}
                     formatDuration={formatDuration}
                     showDragHandle={isReordering}
                   />
                 ))}
+                
+                {/* Add Song Button */}
+                <div className="flex justify-center mt-4">
+                  <div className="relative">
+                    {!showAddSongMenu ? (
+                      <button
+                        onClick={() => setShowAddSongMenu(true)}
+                        className="w-12 h-12 rounded-full bg-primary hover:bg-primary/90 flex items-center justify-center text-primary-foreground shadow-lg transition-colors"
+                      >
+                        <Plus className="h-6 w-6" />
+                      </button>
+                    ) : (
+                      <div className="flex flex-col items-center space-y-3">
+                        {/* Close button */}
+                        <button
+                          onClick={() => {
+                            setShowAddSongMenu(false);
+                            setAddSongMethod(null);
+                          }}
+                          className="w-8 h-8 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center transition-colors"
+                        >
+                          <Plus className="h-4 w-4 rotate-45" />
+                        </button>
+                        
+                        {!addSongMethod ? (
+                          /* Menu options */
+                          <div className="flex space-x-4">
+                            <button
+                              onClick={() => setAddSongMethod('search')}
+                              className="flex flex-col items-center space-y-2 p-3 rounded-lg bg-card hover:bg-accent transition-colors"
+                            >
+                              <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white">
+                                <Globe className="h-5 w-5" />
+                              </div>
+                              <span className="text-xs font-medium">Search Web</span>
+                            </button>
+                            
+                            <button
+                              onClick={() => setAddSongMethod('library')}
+                              className="flex flex-col items-center space-y-2 p-3 rounded-lg bg-card hover:bg-accent transition-colors"
+                            >
+                              <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white">
+                                <Library className="h-5 w-5" />
+                              </div>
+                              <span className="text-xs font-medium">From Library</span>
+                            </button>
+                            
+                            <button
+                              onClick={() => setAddSongMethod('create')}
+                              className="flex flex-col items-center space-y-2 p-3 rounded-lg bg-card hover:bg-accent transition-colors"
+                            >
+                              <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white">
+                                <FileText className="h-5 w-5" />
+                              </div>
+                              <span className="text-xs font-medium">Create New</span>
+                            </button>
+                          </div>
+                        ) : (
+                          /* Selected method interface */
+                          <div className="w-full max-w-md">
+                            {addSongMethod === 'create' && (
+                              <div className="space-y-3">
+                                <h3 className="text-lg font-medium text-center">Create New Song</h3>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    value={newSongName}
+                                    onChange={(e) => setNewSongName(e.target.value)}
+                                    placeholder="Enter song name..."
+                                    className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                    onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && addSong()}
+                                  />
+                                  <Button onClick={addSong} disabled={!newSongName.trim()}>
+                                    Create
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {addSongMethod === 'search' && (
+                              <div className="space-y-3">
+                                <h3 className="text-lg font-medium text-center">Search Songs</h3>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search for artist and song..."
+                                    className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                    onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSearch()}
+                                  />
+                                  <Button onClick={handleSearch} disabled={!searchQuery.trim() || isSearching}>
+                                    {isSearching ? 'Searching...' : 'Search'}
+                                  </Button>
+                                </div>
+                                
+                                {/* Search Results */}
+                                {searchResults.length > 0 && (
+                                  <div className="max-h-80 overflow-y-auto space-y-2">
+                                    <h4 className="text-sm font-medium text-muted-foreground">Search Results:</h4>
+                                    {searchResults.map((track) => (
+                                      <div
+                                        key={track.id}
+                                        className="flex items-center space-x-3 p-3 rounded-lg bg-card hover:bg-accent transition-colors cursor-pointer"
+                                        onClick={() => addSongFromSpotify(track)}
+                                      >
+                                        <div className="flex-shrink-0">
+                                          {track.album.images && track.album.images[0] ? (
+                                            <img
+                                              src={track.album.images[track.album.images.length - 1]?.url}
+                                              alt={track.album.name}
+                                              className="w-12 h-12 rounded-md object-cover"
+                                            />
+                                          ) : (
+                                            <div className="w-12 h-12 rounded-md bg-muted flex items-center justify-center">
+                                              <Music className="w-6 h-6 text-muted-foreground" />
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <h4 className="font-medium text-sm truncate">{track.name}</h4>
+                                          <p className="text-sm text-muted-foreground truncate">
+                                            {track.artists.map((artist: any) => artist.name).join(', ')}
+                                          </p>
+                                          <p className="text-xs text-muted-foreground truncate">
+                                            {track.album.name} • {new Date(track.album.release_date).getFullYear()}
+                                          </p>
+                                        </div>
+                                        <div className="flex-shrink-0">
+                                          <Plus className="h-4 w-4 text-muted-foreground" />
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                
+                                {searchResults.length === 0 && searchQuery && !isSearching && (
+                                  <div className="p-4 rounded-md bg-muted/50 text-center text-sm text-muted-foreground">
+                                    No results found for "{searchQuery}"
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            
+                            {addSongMethod === 'library' && (
+                              <div className="space-y-3">
+                                <h3 className="text-lg font-medium text-center">From Library</h3>
+                                <div className="p-4 rounded-md bg-muted/50 text-center text-sm text-muted-foreground">
+                                  Library functionality coming soon...
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </SortableContext>
           )}
@@ -1213,29 +1814,364 @@ const SetlistManager: React.FC = () => {
         </DndContext>
       ) : (
         <div className="p-4">
-          {songs.length === 0 ? (
+          {!currentSetlist ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                <Music className="h-12 w-12 text-muted-foreground mb-4" />
+                <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
                 <p className="text-muted-foreground mb-2">
-                  No songs in your setlist yet
+                  No setlist selected
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  Add your first song above!
+                <p className="text-sm text-muted-foreground mb-4">
+                  Create your first setlist to start adding songs
                 </p>
+                <Button onClick={(e) => { e.stopPropagation(); setShowCreateSetlist(true); }} className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Create Setlist
+                </Button>
               </CardContent>
             </Card>
+          ) : songs.length === 0 ? (
+            <div className="space-y-4">
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                  <Music className="h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground mb-2">
+                    No songs in your setlist yet
+                  </p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Add your first song to get started
+                  </p>
+                  <Button 
+                    onClick={() => setShowAddSongMenu(true)}
+                    className="gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Song
+                  </Button>
+                </CardContent>
+              </Card>
+              
+              {/* Add Song Menu for Empty State */}
+              {showAddSongMenu && (
+                <div className="flex justify-center">
+                  <div className="relative">
+                    <div className="flex flex-col items-center space-y-3">
+                      {/* Close button */}
+                      <button
+                        onClick={() => {
+                          setShowAddSongMenu(false);
+                          setAddSongMethod(null);
+                        }}
+                        className="w-8 h-8 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center transition-colors"
+                      >
+                        <Plus className="h-4 w-4 rotate-45" />
+                      </button>
+                      
+                      {!addSongMethod ? (
+                        /* Menu options */
+                        <div className="flex space-x-4">
+                          <button
+                            onClick={() => setAddSongMethod('search')}
+                            className="flex flex-col items-center space-y-2 p-3 rounded-lg bg-card hover:bg-accent transition-colors"
+                          >
+                            <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white">
+                              <Globe className="h-5 w-5" />
+                            </div>
+                            <span className="text-xs font-medium">Search Web</span>
+                          </button>
+                          
+                          <button
+                            onClick={() => setAddSongMethod('library')}
+                            className="flex flex-col items-center space-y-2 p-3 rounded-lg bg-card hover:bg-accent transition-colors"
+                          >
+                            <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white">
+                              <Library className="h-5 w-5" />
+                            </div>
+                            <span className="text-xs font-medium">From Library</span>
+                          </button>
+                          
+                          <button
+                            onClick={() => setAddSongMethod('create')}
+                            className="flex flex-col items-center space-y-2 p-3 rounded-lg bg-card hover:bg-accent transition-colors"
+                          >
+                            <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white">
+                              <FileText className="h-5 w-5" />
+                            </div>
+                            <span className="text-xs font-medium">Create New</span>
+                          </button>
+                        </div>
+                      ) : (
+                        /* Selected method interface */
+                        <div className="w-full max-w-md">
+                          {addSongMethod === 'create' && (
+                            <div className="space-y-3">
+                              <h3 className="text-lg font-medium text-center">Create New Song</h3>
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={newSongName}
+                                  onChange={(e) => setNewSongName(e.target.value)}
+                                  placeholder="Enter song name..."
+                                  className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && addSong()}
+                                />
+                                <Button onClick={addSong} disabled={!newSongName.trim()}>
+                                  Create
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {addSongMethod === 'search' && (
+                            <div className="space-y-3">
+                              <h3 className="text-lg font-medium text-center">Search Songs</h3>
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={searchQuery}
+                                  onChange={(e) => setSearchQuery(e.target.value)}
+                                  placeholder="Search for artist and song..."
+                                  className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSearch()}
+                                />
+                                <Button onClick={handleSearch} disabled={!searchQuery.trim() || isSearching}>
+                                  {isSearching ? 'Searching...' : 'Search'}
+                                </Button>
+                              </div>
+                              
+                              {/* Search Results */}
+                              {searchResults.length > 0 && (
+                                <div className="max-h-80 overflow-y-auto space-y-2">
+                                  <h4 className="text-sm font-medium text-muted-foreground">Search Results:</h4>
+                                  {searchResults.map((track) => (
+                                    <div
+                                      key={track.id}
+                                      className="flex items-center space-x-3 p-3 rounded-lg bg-card hover:bg-accent transition-colors cursor-pointer"
+                                      onClick={() => addSongFromSpotify(track)}
+                                    >
+                                      <div className="flex-shrink-0">
+                                        {track.album.images && track.album.images[0] ? (
+                                          <img
+                                            src={track.album.images[track.album.images.length - 1]?.url}
+                                            alt={track.album.name}
+                                            className="w-12 h-12 rounded-md object-cover"
+                                          />
+                                        ) : (
+                                          <div className="w-12 h-12 rounded-md bg-muted flex items-center justify-center">
+                                            <Music className="w-6 h-6 text-muted-foreground" />
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <h4 className="font-medium text-sm truncate">{track.name}</h4>
+                                        <p className="text-sm text-muted-foreground truncate">
+                                          {track.artists.map((artist: any) => artist.name).join(', ')}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground truncate">
+                                          {track.album.name} • {new Date(track.album.release_date).getFullYear()}
+                                        </p>
+                                      </div>
+                                      <div className="flex-shrink-0">
+                                        <Plus className="h-4 w-4 text-muted-foreground" />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              
+                              {searchResults.length === 0 && searchQuery && !isSearching && (
+                                <div className="p-4 rounded-md bg-muted/50 text-center text-sm text-muted-foreground">
+                                  No results found for "{searchQuery}"
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          
+                          {addSongMethod === 'library' && (
+                            <div className="space-y-3">
+                              <h3 className="text-lg font-medium text-center">From Library</h3>
+                              <div className="p-4 rounded-md bg-muted/50 text-center text-sm text-muted-foreground">
+                                Library functionality coming soon...
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="space-y-2">
               {songs.map((song) => (
                 <SortableItem
                   key={song.id}
+                  id={song.id}
                   song={song}
                   onSongClick={setSelectedSong}
                   formatDuration={formatDuration}
                   showDragHandle={false}
                 />
               ))}
+              
+              {/* Add Song Button */}
+              <div className="flex justify-center mt-4">
+                <div className="relative">
+                  {!showAddSongMenu ? (
+                    <button
+                      onClick={() => setShowAddSongMenu(true)}
+                      className="w-12 h-12 rounded-full bg-primary hover:bg-primary/90 flex items-center justify-center text-primary-foreground shadow-lg transition-colors"
+                    >
+                      <Plus className="h-6 w-6" />
+                    </button>
+                  ) : (
+                    <div className="flex flex-col items-center space-y-3">
+                      {/* Close button */}
+                      <button
+                        onClick={() => {
+                          setShowAddSongMenu(false);
+                          setAddSongMethod(null);
+                        }}
+                        className="w-8 h-8 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center transition-colors"
+                      >
+                        <Plus className="h-4 w-4 rotate-45" />
+                      </button>
+                      
+                      {!addSongMethod ? (
+                        /* Menu options */
+                        <div className="flex space-x-4">
+                          <button
+                            onClick={() => setAddSongMethod('search')}
+                            className="flex flex-col items-center space-y-2 p-3 rounded-lg bg-card hover:bg-accent transition-colors"
+                          >
+                            <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white">
+                              <Globe className="h-5 w-5" />
+                            </div>
+                            <span className="text-xs font-medium">Search Web</span>
+                          </button>
+                          
+                          <button
+                            onClick={() => setAddSongMethod('library')}
+                            className="flex flex-col items-center space-y-2 p-3 rounded-lg bg-card hover:bg-accent transition-colors"
+                          >
+                            <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white">
+                              <Library className="h-5 w-5" />
+                            </div>
+                            <span className="text-xs font-medium">From Library</span>
+                          </button>
+                          
+                          <button
+                            onClick={() => setAddSongMethod('create')}
+                            className="flex flex-col items-center space-y-2 p-3 rounded-lg bg-card hover:bg-accent transition-colors"
+                          >
+                            <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white">
+                              <FileText className="h-5 w-5" />
+                            </div>
+                            <span className="text-xs font-medium">Create New</span>
+                          </button>
+                        </div>
+                      ) : (
+                        /* Selected method interface */
+                        <div className="w-full max-w-md">
+                          {addSongMethod === 'create' && (
+                            <div className="space-y-3">
+                              <h3 className="text-lg font-medium text-center">Create New Song</h3>
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={newSongName}
+                                  onChange={(e) => setNewSongName(e.target.value)}
+                                  placeholder="Enter song name..."
+                                  className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && addSong()}
+                                />
+                                <Button onClick={addSong} disabled={!newSongName.trim()}>
+                                  Create
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {addSongMethod === 'search' && (
+                            <div className="space-y-3">
+                              <h3 className="text-lg font-medium text-center">Search Songs</h3>
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={searchQuery}
+                                  onChange={(e) => setSearchQuery(e.target.value)}
+                                  placeholder="Search for artist and song..."
+                                  className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSearch()}
+                                />
+                                <Button onClick={handleSearch} disabled={!searchQuery.trim() || isSearching}>
+                                  {isSearching ? 'Searching...' : 'Search'}
+                                </Button>
+                              </div>
+                              
+                              {/* Search Results */}
+                              {searchResults.length > 0 && (
+                                <div className="max-h-80 overflow-y-auto space-y-2">
+                                  <h4 className="text-sm font-medium text-muted-foreground">Search Results:</h4>
+                                  {searchResults.map((track) => (
+                                    <div
+                                      key={track.id}
+                                      className="flex items-center space-x-3 p-3 rounded-lg bg-card hover:bg-accent transition-colors cursor-pointer"
+                                      onClick={() => addSongFromSpotify(track)}
+                                    >
+                                      <div className="flex-shrink-0">
+                                        {track.album.images && track.album.images[0] ? (
+                                          <img
+                                            src={track.album.images[track.album.images.length - 1]?.url}
+                                            alt={track.album.name}
+                                            className="w-12 h-12 rounded-md object-cover"
+                                          />
+                                        ) : (
+                                          <div className="w-12 h-12 rounded-md bg-muted flex items-center justify-center">
+                                            <Music className="w-6 h-6 text-muted-foreground" />
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <h4 className="font-medium text-sm truncate">{track.name}</h4>
+                                        <p className="text-sm text-muted-foreground truncate">
+                                          {track.artists.map((artist: any) => artist.name).join(', ')}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground truncate">
+                                          {track.album.name} • {new Date(track.album.release_date).getFullYear()}
+                                        </p>
+                                      </div>
+                                      <div className="flex-shrink-0">
+                                        <Plus className="h-4 w-4 text-muted-foreground" />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              
+                              {searchResults.length === 0 && searchQuery && !isSearching && (
+                                <div className="p-4 rounded-md bg-muted/50 text-center text-sm text-muted-foreground">
+                                  No results found for "{searchQuery}"
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          
+                          {addSongMethod === 'library' && (
+                            <div className="space-y-3">
+                              <h3 className="text-lg font-medium text-center">From Library</h3>
+                              <div className="p-4 rounded-md bg-muted/50 text-center text-sm text-muted-foreground">
+                                Library functionality coming soon...
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>

@@ -9,6 +9,7 @@ export interface Song {
   id: string
   user_id: string
   band_id: string
+  setlist_id?: string
   name: string
   artist?: string
   lyrics?: string
@@ -20,6 +21,13 @@ export interface Song {
   position?: number
   created_at: string
   updated_at: string
+  // Spotify metadata
+  spotify_id?: string
+  spotify_url?: string
+  album?: string
+  release_date?: string
+  popularity?: number
+  preview_url?: string
 }
 
 export interface Profile {
@@ -47,4 +55,17 @@ export interface BandMember {
   user_id: string
   role: string
   joined_at: string
+}
+
+export interface Setlist {
+  id: string
+  name: string
+  description?: string
+  venue?: string
+  created_at: string
+  updated_at: string
+  band_id: string
+  created_by: string
+  total_duration?: string
+  song_count?: number
 }

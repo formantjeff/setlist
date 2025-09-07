@@ -31,7 +31,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { searchSpotifyTracks, spotifyTrackToSong, SpotifyTrack } from './services/spotify';
+import { searchSpotifyTracks, spotifyTrackToSong, spotifyTrackToSongWithData, SpotifyTrack } from './services/spotify';
 
 interface SortableItemProps {
   id: string;
@@ -766,7 +766,7 @@ const SetlistManager: React.FC = () => {
   const addSongFromSpotify = async (track: SpotifyTrack) => {
     if (!user || !userBandId || !currentSetlist) return;
 
-    const songData = spotifyTrackToSong(track);
+    const songData = await spotifyTrackToSongWithData(track);
     
     // Get the highest position to add the new song at the end
     const maxPosition = songs.length > 0 ? Math.max(...songs.map(s => s.position || 0)) + 1 : 0;
@@ -1154,6 +1154,26 @@ const SetlistManager: React.FC = () => {
           </Card>
         </div>
 
+        {/* Generated Chord Progression Section */}
+        {selectedSong.chords && (
+          <div className="p-4">
+            <Card>
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Chord Progression</h3>
+                  <Badge variant="secondary">Auto-generated</Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-muted rounded-lg p-4">
+                  <p className="text-lg font-mono font-medium text-center">
+                    {selectedSong.chords}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
         
         {/* Chords Reference Section */}
         {chordsFromLyrics.length > 0 && (

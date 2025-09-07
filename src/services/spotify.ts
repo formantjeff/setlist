@@ -161,3 +161,36 @@ export function spotifyTrackToSong(track: SpotifyTrack) {
   };
 }
 
+// Get Spotify audio features for enhanced chord generation
+export async function getSpotifyAudioFeatures(trackId: string): Promise<any> {
+  try {
+    const token = await getAccessToken();
+    
+    const response = await fetch(`https://api.spotify.com/v1/audio-features/${trackId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (response.ok) {
+      return await response.json();
+    } else if (response.status === 403) {
+      console.log('Audio features not available with current Spotify credentials (Client Credentials flow limitation)');
+    }
+  } catch (error) {
+    console.warn('Failed to get Spotify audio features:', error);
+  }
+  return null;
+}
+
+// Enhanced version that includes lyrics and chords
+export async function spotifyTrackToSongWithData(track: SpotifyTrack) {
+  const { enhanceSongData } = await import('./musicData');
+  const basicSong = spotifyTrackToSong(track);
+  
+  // Get audio features for better key detection
+  const audioFeatures = await getSpotifyAudioFeatures(track.id);
+  
+  return enhanceSongData(basicSong, audioFeatures);
+}
+

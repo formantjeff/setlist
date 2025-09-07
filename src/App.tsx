@@ -90,11 +90,25 @@ const SortableItem: React.FC<SortableItemProps> = ({ song, onSongClick, formatDu
           {/* Thumbnail */}
           <div className="flex-shrink-0">
             {song.thumbnail_url ? (
-              <img 
-                src={song.thumbnail_url} 
-                alt={`${song.name} thumbnail`} 
-                className="w-12 h-12 rounded-md object-cover"
-              />
+              <div className="relative w-12 h-12">
+                <img 
+                  src={song.thumbnail_url} 
+                  alt={`${song.name} thumbnail`} 
+                  className="w-12 h-12 rounded-md object-cover"
+                  onError={(e) => {
+                    console.error('Image failed to load:', song.thumbnail_url);
+                    e.currentTarget.style.display = 'none';
+                    const fallback = e.currentTarget.nextElementSibling as HTMLDivElement;
+                    if (fallback) fallback.style.display = 'flex';
+                  }}
+                  onLoad={() => {
+                    console.log('Image loaded successfully:', song.thumbnail_url);
+                  }}
+                />
+                <div className="absolute inset-0 w-12 h-12 rounded-md bg-muted flex items-center justify-center" style={{display: 'none'}}>
+                  <Music className="w-6 h-6 text-muted-foreground" />
+                </div>
+              </div>
             ) : (
               <div className="w-12 h-12 rounded-md bg-muted flex items-center justify-center">
                 <Music className="w-6 h-6 text-muted-foreground" />
@@ -353,13 +367,32 @@ const SetlistManager: React.FC = () => {
     }
   };
 
-  const handleSaveDetails = () => {
+  const handleSaveDetails = async () => {
     if (selectedSong) {
+      let thumbnailUrl = selectedSong.thumbnail_url;
+      
+      // Upload image if one was selected
+      if (selectedImage) {
+        console.log('Starting image upload for:', selectedImage.name);
+        const uploadedUrl = await uploadImageToSupabase(selectedImage);
+        if (uploadedUrl) {
+          console.log('Image upload successful, updating thumbnail_url to:', uploadedUrl);
+          thumbnailUrl = uploadedUrl;
+        } else {
+          console.error('Image upload failed');
+        }
+      }
+      
+      console.log('Updating song with thumbnail_url:', thumbnailUrl);
       updateSong(selectedSong.id, { 
         artist: editArtist.trim() || undefined,
         duration: editDuration,
-        tempo: parseInt(editTempo) || 120
+        tempo: parseInt(editTempo) || 120,
+        thumbnail_url: thumbnailUrl
       });
+      
+      // Clear selected image and close edit form
+      setSelectedImage(null);
       setIsEditingDetails(false);
     }
   };
@@ -377,7 +410,7 @@ const SetlistManager: React.FC = () => {
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${selectedSong.id}-${Date.now()}.${fileExt}`;
-      const filePath = `song-thumbnails/${fileName}`;
+      const filePath = fileName;
 
       const { error } = await supabase.storage
         .from('song-images')
@@ -393,6 +426,7 @@ const SetlistManager: React.FC = () => {
         .from('song-images')
         .getPublicUrl(filePath);
 
+      console.log('Generated public URL:', publicUrl);
       return publicUrl;
     } catch (error) {
       console.error('Unexpected error uploading image:', error);
@@ -809,8 +843,47 @@ const SetlistManager: React.FC = () => {
                     />
                   </div>
                 </div>
+                
+                {/* Thumbnail Upload Section */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Thumbnail Image</label>
+                  <div className="flex items-center gap-4">
+                    {selectedSong.thumbnail_url ? (
+                      <img 
+                        src={selectedSong.thumbnail_url} 
+                        alt="Current thumbnail" 
+                        className="h-12 w-12 rounded-md object-cover" 
+                      />
+                    ) : (
+                      <div className="h-12 w-12 rounded-md bg-muted flex items-center justify-center">
+                        <Music className="h-6 w-6 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setSelectedImage(file);
+                          }
+                        }}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                      {selectedImage && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Selected: {selectedImage.name}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
                 <div className="flex justify-end space-x-2">
-                  <Button variant="outline" onClick={() => setIsEditingDetails(false)}>
+                  <Button variant="outline" onClick={() => {
+                    setIsEditingDetails(false);
+                    setSelectedImage(null);
+                  }}>
                     Cancel
                   </Button>
                   <Button onClick={handleSaveDetails}>

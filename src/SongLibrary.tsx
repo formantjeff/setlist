@@ -1,19 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from './supabaseClient';
+import { supabase, Song } from './supabase';
 import { Card, CardHeader, CardContent } from './components/ui/card';
 import { Badge } from './components/ui/badge';
-
-interface Song {
-  id: string;
-  name: string;
-  artist: string;
-  duration: string;
-  thumbnail_url?: string;
-  album?: string;
-  popularity?: number;
-  chords?: string;
-  lyrics?: string;
-}
 
 interface SongLibraryProps {
   onSongSelect: (song: Song) => void;
@@ -39,7 +27,7 @@ export default function SongLibrary({ onSongSelect, onClose }: SongLibraryProps)
     } else {
       const filtered = songs.filter(song =>
         song.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        song.artist.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (song.artist && song.artist.toLowerCase().includes(searchTerm.toLowerCase())) ||
         song.album?.toLowerCase().includes(searchTerm.toLowerCase())
       );
       setFilteredSongs(filtered);
@@ -53,7 +41,7 @@ export default function SongLibrary({ onSongSelect, onClose }: SongLibraryProps)
         case 'name':
           return a.name.localeCompare(b.name);
         case 'artist':
-          return a.artist.localeCompare(b.artist);
+          return (a.artist || '').localeCompare(b.artist || '');
         case 'popularity':
           return (b.popularity || 0) - (a.popularity || 0);
         default:
@@ -81,7 +69,8 @@ export default function SongLibrary({ onSongSelect, onClose }: SongLibraryProps)
     }
   };
 
-  const formatDuration = (duration: string): string => {
+  const formatDuration = (duration?: string): string => {
+    if (!duration) return 'Unknown';
     if (duration.includes(':') && duration.split(':').length === 3) {
       const [hours, minutes, seconds] = duration.split(':');
       if (hours === '00') {
@@ -171,15 +160,19 @@ export default function SongLibrary({ onSongSelect, onClose }: SongLibraryProps)
                     {/* Song info */}
                     <div className="flex-1">
                       <h3 className="font-semibold text-lg">{song.name}</h3>
-                      <p className="text-gray-600">{song.artist}</p>
+                      {song.artist && (
+                        <p className="text-gray-600">{song.artist}</p>
+                      )}
                       {song.album && (
                         <p className="text-sm text-gray-500">{song.album}</p>
                       )}
                       
                       <div className="flex items-center gap-2 mt-2">
-                        <Badge variant="outline">
-                          {formatDuration(song.duration)}
-                        </Badge>
+                        {song.duration && (
+                          <Badge variant="outline">
+                            {formatDuration(song.duration)}
+                          </Badge>
+                        )}
                         
                         {song.popularity && (
                           <Badge variant="secondary">

@@ -31,7 +31,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { searchSpotifyTracks, spotifyTrackToSong, spotifyTrackToSongWithData, SpotifyTrack, isUserAuthenticated, loginToSpotify } from './services/spotify';
+import { searchSpotifyTracks, spotifyTrackToSong, spotifyTrackToSongWithData, SpotifyTrack, isUserAuthenticated, loginToSpotify, clearUserAccessToken } from './services/spotify';
 import { spotifyPlayerService } from './services/spotifyPlayer';
 import SongLibrary from './SongLibrary';
 
@@ -482,6 +482,13 @@ const SetlistManager: React.FC = () => {
       updateSong(selectedSong.id, { notes: editNotes });
       setIsAddingNotes(false);
     }
+  };
+
+  const handleDisconnectSpotify = () => {
+    clearUserAccessToken();
+    spotifyPlayerService.disconnect();
+    setCurrentPlayingSongId(null);
+    setIsPlaying(false);
   };
 
   const uploadImageToSupabase = async (file: File): Promise<string | null> => {
@@ -1504,7 +1511,9 @@ const SetlistManager: React.FC = () => {
             <Button 
               variant="ghost" 
               size="sm"
-              className="text-green-600"
+              className="text-green-600 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+              onClick={handleDisconnectSpotify}
+              title="Click to disconnect"
             >
               <Music className="h-4 w-4 mr-2" />
               Spotify Connected

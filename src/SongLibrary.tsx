@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, Song } from './supabase';
-import { Card, CardHeader, CardContent } from './components/ui/card';
+import { Card, CardContent } from './components/ui/card';
 import { Badge } from './components/ui/badge';
 
 interface SongLibraryProps {
@@ -20,23 +20,21 @@ export default function SongLibrary({ onSongSelect, onClose }: SongLibraryProps)
     fetchAllSongs();
   }, []);
 
-  // Filter songs based on search term
+  // Filter and sort songs
   useEffect(() => {
-    if (!searchTerm.trim()) {
-      setFilteredSongs(songs);
-    } else {
-      const filtered = songs.filter(song =>
+    let result = songs;
+    
+    // Filter first
+    if (searchTerm.trim()) {
+      result = songs.filter(song =>
         song.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (song.artist && song.artist.toLowerCase().includes(searchTerm.toLowerCase())) ||
         song.album?.toLowerCase().includes(searchTerm.toLowerCase())
       );
-      setFilteredSongs(filtered);
     }
-  }, [searchTerm, songs]);
-
-  // Sort songs
-  useEffect(() => {
-    const sorted = [...filteredSongs].sort((a, b) => {
+    
+    // Then sort
+    const sorted = [...result].sort((a, b) => {
       switch (sortBy) {
         case 'name':
           return a.name.localeCompare(b.name);
@@ -48,8 +46,9 @@ export default function SongLibrary({ onSongSelect, onClose }: SongLibraryProps)
           return 0;
       }
     });
+    
     setFilteredSongs(sorted);
-  }, [sortBy, filteredSongs]);
+  }, [searchTerm, songs, sortBy]);
 
   const fetchAllSongs = async () => {
     try {
@@ -88,8 +87,8 @@ export default function SongLibrary({ onSongSelect, onClose }: SongLibraryProps)
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-8">
-          <p>Loading song library...</p>
+        <div className="bg-background rounded-lg p-8 border">
+          <p className="text-foreground">Loading song library...</p>
         </div>
       </div>
     );
@@ -97,7 +96,7 @@ export default function SongLibrary({ onSongSelect, onClose }: SongLibraryProps)
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-full max-w-4xl h-5/6 flex flex-col">
+      <div className="bg-background rounded-lg w-full max-w-4xl h-5/6 flex flex-col border">
         {/* Header */}
         <div className="p-6 border-b">
           <div className="flex justify-between items-center mb-4">

@@ -10,7 +10,7 @@ import { BandSelection } from './BandSelection';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardHeader } from './components/ui/card';
 import { Badge } from './components/ui/badge';
-import { ArrowLeft, MoreHorizontal, Edit3, Trash2, Music, Heart, Share2, RotateCcw, Plus, Settings as SettingsIcon, User, Moon, Sun, Search, Globe, Library, FileText, ChevronDown, Calendar, MapPin, Clock } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, Edit3, Trash2, Music, Heart, Share2, RotateCcw, Plus, Settings as SettingsIcon, User, Moon, Sun, Search, Globe, Library, FileText, ChevronDown, Calendar, MapPin, Clock, Play, Pause } from 'lucide-react';
 import { useTheme } from './ThemeContext';
 import {
   DndContext,
@@ -31,7 +31,8 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { searchSpotifyTracks, spotifyTrackToSong, spotifyTrackToSongWithData, SpotifyTrack } from './services/spotify';
+import { searchSpotifyTracks, spotifyTrackToSong, spotifyTrackToSongWithData, SpotifyTrack, isUserAuthenticated, loginToSpotify } from './services/spotify';
+import { spotifyPlayerService } from './services/spotifyPlayer';
 import SongLibrary from './SongLibrary';
 
 interface SortableItemProps {
@@ -40,9 +41,12 @@ interface SortableItemProps {
   onSongClick: (song: Song) => void;
   formatDuration: (duration?: string) => string;
   showDragHandle: boolean;
+  onPlaySong?: (song: Song) => void;
+  isPlaying?: boolean;
+  currentPlayingSongId?: string | null;
 }
 
-const SortableItem: React.FC<SortableItemProps> = ({ id, song, onSongClick, formatDuration, showDragHandle }) => {
+const SortableItem: React.FC<SortableItemProps> = ({ id, song, onSongClick, formatDuration, showDragHandle, onPlaySong, isPlaying, currentPlayingSongId }) => {
   const {
     attributes,
     listeners,
@@ -133,6 +137,27 @@ const SortableItem: React.FC<SortableItemProps> = ({ id, song, onSongClick, form
             </div>
           </div>
           
+          {/* Play/Pause Button */}
+          {onPlaySong && song.spotify_url && isUserAuthenticated() && (
+            <div className="flex-shrink-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPlaySong(song);
+                }}
+                className="h-8 w-8 p-0 hover:bg-green-100 dark:hover:bg-green-900/20"
+              >
+                {currentPlayingSongId === song.id && isPlaying ? (
+                  <Pause className="h-4 w-4 text-green-600" />
+                ) : (
+                  <Play className="h-4 w-4 text-green-600" />
+                )}
+              </Button>
+            </div>
+          )}
+          
           {/* Version */}
           <div className="flex-shrink-0">
             <Badge variant="secondary" className="text-xs">v.1</Badge>
@@ -179,6 +204,11 @@ const SetlistManager: React.FC = () => {
   const [newSetlistName, setNewSetlistName] = useState('');
   const [newSetlistVenue, setNewSetlistVenue] = useState('');
   const [newSetlistDescription, setNewSetlistDescription] = useState('');
+  
+  // Spotify playback state
+  const [currentPlayingSongId, setCurrentPlayingSongId] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
@@ -808,15 +838,17 @@ const SetlistManager: React.FC = () => {
       // Get the highest position to add the new song at the end
       const maxPosition = songs.length > 0 ? Math.max(...songs.map(s => s.position || 0)) + 1 : 0;
 
+      // Create a new song record without the original ID
+      const { id, created_at, updated_at, ...songWithoutId } = song;
+      
       const { data, error } = await supabase
         .from('songs')
         .insert([{
-          ...song,
+          ...songWithoutId,
           user_id: user.id,
           band_id: userBandId,
           setlist_id: currentSetlist.id,
-          position: maxPosition,
-          id: undefined // Let database generate new ID
+          position: maxPosition
         }])
         .select();
 
@@ -833,6 +865,46 @@ const SetlistManager: React.FC = () => {
       console.error('Error adding song from library:', error);
     }
   };
+
+  // Spotify playback handlers
+  const handlePlaySong = async (song: Song) => {
+    if (!song.spotify_url) return;
+    
+    if (currentPlayingSongId === song.id && isPlaying) {
+      // Pause the current song
+      try {
+        await spotifyPlayerService.pause();
+        setIsPlaying(false);
+      } catch (error) {
+        console.error('Failed to pause song:', error);
+      }
+    } else {
+      // Play the song
+      try {
+        const spotifyUri = song.spotify_url.replace('https://open.spotify.com/track/', 'spotify:track:');
+        await spotifyPlayerService.playTrack(spotifyUri);
+        setCurrentPlayingSongId(song.id);
+        setIsPlaying(true);
+      } catch (error) {
+        console.error('Failed to play song:', error);
+      }
+    }
+  };
+
+  // Listen for player state changes
+  React.useEffect(() => {
+    const handlePlayerStateChange = (state: any) => {
+      if (state) {
+        setIsPlaying(!state.paused);
+      }
+    };
+
+    spotifyPlayerService.on('player_state_changed', handlePlayerStateChange);
+    
+    return () => {
+      spotifyPlayerService.off('player_state_changed', handlePlayerStateChange);
+    };
+  }, []);
 
   // If user doesn't have a band, show band selection
   if (!userBandId) {
@@ -1418,6 +1490,26 @@ const SetlistManager: React.FC = () => {
             >
               <User className="h-4 w-4" />
             </Button>
+{!isUserAuthenticated() ? (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={loginToSpotify}
+              className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20"
+            >
+              <Music className="h-4 w-4 mr-2" />
+              Connect Spotify
+            </Button>
+            ) : (
+            <Button 
+              variant="ghost" 
+              size="sm"
+              className="text-green-600"
+            >
+              <Music className="h-4 w-4 mr-2" />
+              Spotify Connected
+            </Button>
+            )}
             <Button 
               variant="ghost" 
               size="icon" 
@@ -1649,6 +1741,9 @@ const SetlistManager: React.FC = () => {
                     onSongClick={setSelectedSong}
                     formatDuration={formatDuration}
                     showDragHandle={isReordering}
+                    onPlaySong={handlePlaySong}
+                    isPlaying={isPlaying}
+                    currentPlayingSongId={currentPlayingSongId}
                   />
                 ))}
                 
@@ -2073,6 +2168,9 @@ const SetlistManager: React.FC = () => {
                   onSongClick={setSelectedSong}
                   formatDuration={formatDuration}
                   showDragHandle={false}
+                  onPlaySong={handlePlaySong}
+                  isPlaying={isPlaying}
+                  currentPlayingSongId={currentPlayingSongId}
                 />
               ))}
               

@@ -3,56 +3,95 @@
 ## Architecture
 - **Frontend**: React 19 with TypeScript
 - **UI Framework**: shadcn/ui with Tailwind CSS
-- **Drag & Drop**: @dnd-kit for professional song reordering
 - **Backend**: Supabase (PostgreSQL + Auth + Storage)
-- **Icons**: Lucide React for consistent iconography
+- **Deployment**: Vercel with automatic git-based deployments
+- **APIs**: Spotify Web API, Genius Lyrics API (serverless functions)
 
-## Recent Updates
+## Current Features
 
-### Mode System Removal & Conditional Drag-and-Drop
-- **Removed global mode system**: Eliminated ModeProvider and useMode hook
-- **Contextual editing**: All editing functionality (lyrics, notes, song details) is always available
-- **Conditional reordering**: Drag handles only appear when clicking the edit/pencil icon in the header
-- **Professional drag experience**: 
-  - Enhanced drag overlay with card preview
-  - Smooth visual feedback during dragging
-  - Cards automatically move out of the way
-  - Touch and pointer sensor optimization
+### Core Functionality
+- **Multi-Setlist Management**: Create and manage multiple setlists per band
+- **Song Library**: Browse and search existing songs across all setlists
+- **Spotify Integration**: Search and add songs directly from Spotify with metadata
+- **Auto-Generated Chords**: Music theory-based chord progression generation
+- **Lyrics Support**: Fetch lyrics via serverless functions (production-ready, CORS-free)
+- **Band Management**: Multi-user bands with collaborative setlist editing
 
-### UI Improvements
-- **Header controls**: Edit/pencil icon toggles song reordering mode
-- **Better drag handles**: Larger, more touch-friendly drag indicators
-- **Visual feedback**: Active drag state with opacity and shadow effects
-- **Responsive design**: Works on both desktop and mobile devices
+### Music Intelligence
+- **Chord Generation**: Auto-generated progressions based on:
+  - Spotify audio features (key, mode, tempo)
+  - Music theory (circle of fifths, major/minor scales)
+  - Fallback heuristics when Spotify data unavailable
+- **Smart Metadata**: Duration formatting, popularity scores, album info
+- **Audio Features**: Tempo, key signature, and energy analysis
 
-## Key Features
-- **Song Management**: Add, edit, delete songs with metadata (artist, tempo, duration, notes)
-- **Lyrics with Chords**: Inline chord notation with [G], [Em] syntax
-- **Image Upload**: Song thumbnails via Supabase Storage
-- **Band Management**: Multi-user bands with member roles
-- **Dark/Light Theme**: User preference with system integration
-- **Drag & Drop Reordering**: Professional setlist organization
+### User Experience
+- **Dark/Light Mode**: Fully themed UI with system preference detection
+- **Responsive Design**: Mobile-optimized touch interface
+- **Modern UI**: Clean, professional interface with consistent styling
+- **Real-time Updates**: Immediate feedback for all operations
 
-## Development Commands
-- `npm start` - Start development server
-- `npm run build` - Create production build
-- `npm test` - Run test suite
+## Recent Major Updates (Current Session)
+
+### Lyrics & Chords Implementation
+- **Serverless Architecture**: Vercel API functions for CORS-free lyrics fetching
+- **Production vs Development**: Smart detection for API usage
+- **Genius API Integration**: Full lyrics text with proper attribution
+- **Chord Display**: Generated progressions shown in song detail view
+
+### Technical Improvements
+- **TypeScript Compliance**: Fixed all compilation errors and interface mismatches
+- **Performance Optimization**: Eliminated infinite loops in useEffect hooks
+- **Database Integrity**: Proper ID handling for song library operations
+- **Theme Consistency**: Dark mode support across all modals and components
+
+### Bug Fixes
+- **Song Library Modal**: Fixed TypeScript interface conflicts and infinite re-renders
+- **Database Constraints**: Resolved "null value in column 'id'" insertion errors
+- **Dark Mode Support**: SongLibrary modal now respects theme preferences
+- **API Error Handling**: Graceful fallbacks for failed Spotify audio features requests
 
 ## File Structure
-- `src/App.tsx` - Main application component
-- `src/ThemeContext.tsx` - Dark/light mode management
-- `src/AuthContext.tsx` - User authentication
-- `src/supabase.tsx` - Database configuration and types
-- `src/components/ui/` - shadcn/ui components
-- `src/BandSelection.tsx` - Band creation/joining interface
+```
+src/
+├── App.tsx                 # Main application with setlist management
+├── SongLibrary.tsx         # Song library modal with search/filter
+├── BandSelection.tsx       # Band creation and selection interface
+├── services/
+│   ├── spotify.ts          # Spotify Web API integration
+│   └── musicData.ts        # Lyrics fetching and chord generation
+├── components/ui/          # shadcn/ui component library
+├── supabase.ts            # Database types and configuration
+└── ThemeContext.tsx       # Dark/light mode management
 
-## Recent Bug Fixes
-- Fixed PostCSS configuration for Tailwind CSS compilation
-- Removed obsolete ModeToggle component
-- Resolved TypeScript import conflicts
-- Enhanced drag sensor responsiveness
+api/
+└── lyrics.js              # Vercel serverless function for lyrics
+```
 
-## Testing Notes
-- App runs on localhost:3001 for development
-- Mobile testing requires network access to development server
-- All drag and drop functionality works on touch devices
+## Development Commands
+- `npm start` - Start development server (port 3005)
+- `PORT=3005 npm start` - Start on specific port
+- `npm run build` - Create production build
+- `git push` - Auto-deploy to Vercel
+
+## API Configuration
+- **Spotify**: Requires Client ID/Secret for search and audio features
+- **Genius**: Access token configured for lyrics fetching
+- **Supabase**: Full-stack backend with real-time subscriptions
+
+## Current Status
+✅ **Stable Features**: Setlist management, Spotify search, chord generation
+✅ **Production Ready**: Auto-deployment pipeline, serverless functions
+✅ **Mobile Optimized**: Touch-friendly interface, responsive design
+🔄 **In Testing**: Lyrics functionality (production), chord display verification
+
+## Known Limitations
+- **Spotify Audio Features**: 403 errors with Client Credentials flow (expected)
+- **Development Lyrics**: CORS-blocked (works in production via serverless functions)
+- **Chord Accuracy**: Generated progressions are algorithmic approximations
+
+## Deployment Notes
+- **Vercel Integration**: Automatic deploys on git push
+- **Environment Variables**: Configured in Vercel dashboard
+- **Serverless Functions**: Handle CORS-restricted APIs
+- **Production URL**: Auto-generated Vercel domain

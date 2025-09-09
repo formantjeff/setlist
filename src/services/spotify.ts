@@ -194,3 +194,109 @@ export async function spotifyTrackToSongWithData(track: SpotifyTrack) {
   return enhanceSongData(basicSong, audioFeatures);
 }
 
+// OAuth functions for user authentication and playback
+const SCOPES = [
+  'streaming',
+  'user-read-email',
+  'user-read-private',
+  'user-read-playback-state',
+  'user-modify-playback-state'
+].join(' ');
+
+const REDIRECT_URI = window.location.origin + '/spotify-callback';
+
+// User authentication state
+let userAccessToken: string | null = null;
+let userTokenExpiry = 0;
+
+export function generateSpotifyAuthUrl(): string {
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID,
+    response_type: 'code',
+    redirect_uri: REDIRECT_URI,
+    scope: SCOPES,
+    state: Math.random().toString(36).substring(7),
+    show_dialog: 'false'
+  });
+
+  return `https://accounts.spotify.com/authorize?${params.toString()}`;
+}
+
+export async function exchangeCodeForToken(code: string): Promise<string> {
+  try {
+    const response = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': 'Basic ' + btoa(CLIENT_ID + ':' + CLIENT_SECRET)
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: code,
+        redirect_uri: REDIRECT_URI
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('Spotify token exchange failed:', response.status, response.statusText, errorData);
+      throw new Error(`Failed to exchange code for token: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const tokenFromResponse = data.access_token;
+    
+    if (!tokenFromResponse) {
+      throw new Error('No access token received from Spotify');
+    }
+    
+    userAccessToken = tokenFromResponse;
+    userTokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
+    
+    // Store token in localStorage for persistence
+    localStorage.setItem('spotify_user_token', tokenFromResponse);
+    localStorage.setItem('spotify_user_token_expiry', userTokenExpiry.toString());
+    
+    console.log('Successfully obtained Spotify user access token');
+    return tokenFromResponse;
+  } catch (error) {
+    console.error('Error exchanging code for token:', error);
+    throw error;
+  }
+}
+
+export function getUserAccessToken(): string | null {
+  // Check if we have a valid token in memory
+  if (userAccessToken && Date.now() < userTokenExpiry) {
+    return userAccessToken;
+  }
+
+  // Try to load from localStorage
+  const storedToken = localStorage.getItem('spotify_user_token');
+  const storedExpiry = localStorage.getItem('spotify_user_token_expiry');
+  
+  if (storedToken && storedExpiry && Date.now() < parseInt(storedExpiry)) {
+    userAccessToken = storedToken;
+    userTokenExpiry = parseInt(storedExpiry);
+    return userAccessToken;
+  }
+
+  return null;
+}
+
+export function clearUserAccessToken(): void {
+  userAccessToken = null;
+  userTokenExpiry = 0;
+  localStorage.removeItem('spotify_user_token');
+  localStorage.removeItem('spotify_user_token_expiry');
+}
+
+export function isUserAuthenticated(): boolean {
+  return getUserAccessToken() !== null;
+}
+
+export function loginToSpotify(): void {
+  const authUrl = generateSpotifyAuthUrl();
+  window.location.href = authUrl;
+}
+

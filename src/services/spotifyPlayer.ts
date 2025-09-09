@@ -95,6 +95,12 @@ class SpotifyPlayerService {
       // Reconnect with new token if player is already initialized
       this.disconnect();
       this.initializePlayer();
+    } else if (window.Spotify) {
+      // SDK is loaded but player not initialized yet
+      this.initializePlayer();
+    } else {
+      // SDK not loaded yet, will be initialized when onSpotifyWebPlaybackSDKReady is called
+      console.log('Spotify SDK not loaded yet, will initialize when ready...');
     }
   }
 

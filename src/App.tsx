@@ -31,7 +31,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { searchSpotifyTracks, spotifyTrackToSong, spotifyTrackToSongWithData, SpotifyTrack, isUserAuthenticated, loginToSpotify, clearUserAccessToken } from './services/spotify';
+import { searchSpotifyTracks, spotifyTrackToSong, spotifyTrackToSongWithData, SpotifyTrack, isUserAuthenticated, loginToSpotify, clearUserAccessToken, getUserAccessToken } from './services/spotify';
 import { spotifyPlayerService } from './services/spotifyPlayer';
 import SongLibrary from './SongLibrary';
 
@@ -242,6 +242,15 @@ const SetlistManager: React.FC = () => {
       fetchSongs();
     }
   }, [currentSetlist]);
+
+  // Initialize Spotify player with stored user token
+  useEffect(() => {
+    const userToken = getUserAccessToken();
+    if (userToken) {
+      console.log('Found stored Spotify token, initializing player...');
+      spotifyPlayerService.setAccessToken(userToken);
+    }
+  }, []);
 
   const fetchProfile = async () => {
     if (!user) return;
